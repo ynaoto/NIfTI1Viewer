@@ -4,8 +4,14 @@
 //String dir = "mni_icbm152_nlin_sym_09a_nifti/mni_icbm152_nlin_sym_09a/";
 //String file = dir + "mni_icbm152_csf_tal_nlin_sym_09a.nii";
 //String file = dir + "mni_icbm152_t1_tal_nlin_sym_09a_eye_mask.nii";
-String dir = "mni_icbm152_nlin_asym_09a_nifti/mni_icbm152_nlin_asym_09a/";
-String file = dir + "mni_icbm152_csf_tal_nlin_asym_09a.nii";
+//String dir = "mni_icbm152_nlin_asym_09a_nifti/mni_icbm152_nlin_asym_09a/";
+//String file = dir + "mni_icbm152_csf_tal_nlin_asym_09a.nii";
+String dir = "05/";
+String hdrFile = dir + "s005-0004-00001-000001-01.hdr";
+String imgFile = dir + "s005-0004-00001-000001-01.img";
+//String dir = "06/";
+//String hdrFile = dir + "s006-0004-00001-000001-01.hdr";
+//String imgFile = dir + "s006-0004-00001-000001-01.img";
 
 boolean isBigEndian = true;
 
@@ -356,15 +362,17 @@ class Image {
 Header header;
 Image image;
 
-float th;
+float inf, sup;
 
 void setup() {
   size(400, 400, P3D);
-  InputStream input = createInput(file);
+  InputStream input = createInput(hdrFile);
   try {
     header = new Header();
     header.read(input);
-    skip(input, (int)header.vox_offset - header.sizeof_hdr);
+    // skip(input, (int)header.vox_offset - header.sizeof_hdr);
+    input = createInput(imgFile);
+    skip(input, (int)header.vox_offset);
     image = new Image(header);
     image.read(input);
     println("file reading completed");
@@ -381,7 +389,8 @@ void setup() {
     }
   }
   colorMode(HSB);
-  th = header.cal_min + 0.5*(header.cal_max - header.cal_min);
+  inf = header.cal_min + 0.5*(header.cal_max - header.cal_min);
+  sup = header.cal_max;
 }
 
 float rx = 0;
@@ -390,15 +399,14 @@ float tx = 0;
 float ty = 0;
 float scale = 1;
 
-int dx = 1;
-int dy = 1;
-int dz = 10;
+int gap = 10;
 
 void draw() {
   background(255);
   fill(0);
-  text("th: " + th, 8, 16);
-  text("dz: " + dz, 8, 32);
+  text("inf: " + inf, 8, 16);
+  text("sup: " + sup, 8, 32);
+  text("gap: " + gap, 8, 48);
 
   pushMatrix();
   translate(width/2, height/2);
@@ -412,15 +420,20 @@ void draw() {
   ry += 0.01;
   endCamera();
 
+  int dx = 1;
+  int dy = gap;
+  int dz = 1;
   for (int i = 0; i < header.dim[1]; i += dx) {
     for (int j = 0; j < header.dim[2]; j += dy) {
       for (int k = 0; k < header.dim[3]; k += dz) {
         Image.Voxel v = image.voxels[i][j][k];
-        if (v.value < th) continue;
+        if (v.value < inf) continue;
         // if (50*50 < v.x*v.x + v.z*v.z + v.y*v.y) continue;
         // float a = 2, b = 1, c = 0;
         // if (a*v.x + b*v.y + c < v.z) continue;
-        stroke(map(v.value, header.cal_min, header.cal_max, 0, 255), 255, 255);
+        // stroke(map(v.value, header.cal_min, header.cal_max, 0, 255), 255, 255);
+        // stroke(map(v.value, th, header.cal_max, 0, 255), 255, 255);
+        stroke(map(v.value, inf, sup, 0, 255), 255, 255);
         point(v.x, -v.z, v.y);
       }
     }
@@ -441,16 +454,34 @@ void mouseDragged() {
   }
 }
 
+boolean shiftIn = false;
+
 void keyPressed() {
   float dth = (header.cal_max - header.cal_min)/100;
-  if (key == CODED && keyCode == RIGHT) {
-    th += dth;
+  if (key == CODED && keyCode == SHIFT) {
+    shiftIn = true;
+  } else if (key == CODED && keyCode == RIGHT) {
+    if (!shiftIn) {
+      inf += dth;
+    } else {
+      sup += dth;
+    }
   } else if (key == CODED && keyCode == LEFT) {
-    th -= dth;
+    if (!shiftIn) {
+      inf -= dth;
+    } else {
+      sup -= dth;
+    }
   } else if (key == CODED && keyCode == UP) {
-    dz += 1;
+    gap += 1;
   } else if (key == CODED && keyCode == DOWN) {
-    if (1 < dz) dz -= 1;
+    if (1 < gap) gap -= 1;
+  }
+}
+
+void keyReleased() {
+  if (key == CODED && keyCode == SHIFT) {
+    shiftIn = false;
   }
 }
 
